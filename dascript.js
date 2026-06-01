@@ -1,0 +1,197 @@
+const BLUEPRINT_ID = 12024;
+
+// The Forge
+const REGION_ID = 10000002;
+
+// Jita IV - Moon 4 - Caldari Navy Assembly Plant
+const JITA_STATION_ID = 60003760;
+
+async function load() {
+
+    const status =
+        document.getElementById("status");
+
+    const table =
+        document.getElementById("table");
+
+    const tbody =
+        table.querySelector("tbody");
+
+    const grandTotalEl =
+        document.getElementById("grandTotal");
+
+    const me =
+        Number(
+            document.getElementById("meInput").value
+        );
+
+    status.textContent = "Loading...";
+
+    tbody.innerHTML = "";
+    table.hidden = true;
+
+    let grandTotal = 0;
+
+    // Load blueprint
+    const blueprintRes = await fetch(
+        `https://www.fuzzwork.co.uk/blueprint/api/blueprint.php?typeid=${BLUEPRINT_ID}`
+    );
+
+    const blueprintData =
+        await blueprintRes.json();
+
+    const materials =
+        blueprintData.activityMaterials["1"];
+
+    // PARALLEL PRICE LOADING
+    const pricePromises =
+        materials.map(async material => {
+
+            status.textContent =
+                `Loading ${material.name}...`;
+
+            const sellPrice =
+                await getLowestJitaSell(
+                    material.typeid
+                );
+
+            return {
+                material,
+                sellPrice
+            };
+        });
+
+    const results =
+        await Promise.all(pricePromises);
+
+    for (const result of results) {
+
+        const material =
+            result.material;
+
+        const sellPrice =
+            result.sellPrice;
+
+        // ME formula
+        const meQty =
+            calculateMEQuantity(
+                material.quantity,
+                me
+            );
+
+        const total =
+            meQty * sellPrice;
+
+        grandTotal += total;
+
+        const row =
+            document.createElement("tr");
+
+        row.innerHTML = `
+            <td>${material.name}</td>
+
+            <td>
+                ${material.quantity.toLocaleString()}
+            </td>
+
+            <td>
+                ${meQty.toLocaleString()}
+            </td>
+
+            <td>
+                ${formatISK(sellPrice)}
+            </td>
+
+            <td>
+                ${formatISK(total)}
+            </td>
+        `;
+
+        tbody.appendChild(row);
+    }
+
+    table.hidden = false;
+
+    grandTotalEl.textContent =
+        "Total Build Cost: " +
+        formatISK(grandTotal);
+
+    status.textContent = "Done.";
+}
+
+// Jita 4-4 ONLY
+async function getLowestJitaSell(typeId) {
+
+    let page = 1;
+
+    let lowest = Infinity;
+
+    while (true) {
+
+        const url =
+            `https://esi.evetech.net/latest/markets/${REGION_ID}/orders/` +
+            `?datasource=tranquility` +
+            `&order_type=sell` +
+            `&type_id=${typeId}` +
+            `&page=${page}`;
+
+        const res =
+            await fetch(url);
+
+        const orders =
+            await res.json();
+
+        if (!orders.length) {
+            break;
+        }
+
+        for (const order of orders) {
+
+            // Jita 4-4 only
+            if (
+                order.location_id ===
+                JITA_STATION_ID
+            ) {
+
+                if (order.price < lowest) {
+                    lowest = order.price;
+                }
+            }
+        }
+
+        if (orders.length < 1000) {
+            break;
+        }
+
+        page++;
+    }
+
+    if (lowest === Infinity) {
+        return 0;
+    }
+
+    return lowest;
+}
+
+// Industry ME calculation
+function calculateMEQuantity(baseQty, mePercent) {
+
+    const wasteMultiplier =
+        1 - (mePercent / 100);
+
+    return Math.max(
+        1,
+        Math.ceil(baseQty * wasteMultiplier)
+    );
+}
+
+function formatISK(value) {
+
+    return value.toLocaleString(
+        "en-US",
+        {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }
+    ) + " ISK";
+}
