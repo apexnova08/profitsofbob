@@ -1,2 +1,2 @@
-# profitsofbob
-Profits of Bob
+# Profits of Bob
+By the prophet of Bob

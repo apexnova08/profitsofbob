@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0"
+        />
+
+        <title>EVE Online Deimos Build Materials</title>
+
+        <!-- Water.css -->
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css"
+        />
+
+        <style>
+            body {
+                max-width: 1000px;
+                margin: auto;
+            }
+
+            table {
+                width: 100%;
+            }
+
+            .loading {
+                color: orange;
+            }
+
+            .error {
+                color: red;
+            }
+
+            .total {
+                font-size: 1.2rem;
+                font-weight: bold;
+                margin-top: 1rem;
+            }
+        </style>
+    </head>
+
+    <body>
+        <h1>Deimos Build Materials</h1>
+
+        <p>
+            Fetches Deimos manufacturing materials and current Jita
+            prices using EVE Online ESI + Fuzzwork market
+            aggregation.
+        </p>
+
+        <button id="loadBtn">Load Prices</button>
+
+        <p id="status"></p>
+
+        <table id="materialsTable" hidden>
+            <thead>
+                <tr>
+                    <th>Material</th>
+                    <th>Quantity</th>
+                    <th>Jita Buy</th>
+                    <th>Total Cost</th>
+                </tr>
+            </thead>
+
+            <tbody></tbody>
+        </table>
+
+        <div class="total" id="grandTotal"></div>
+
+        <script>
+            const DEIMOS_TYPE_ID = 12015;
+            const JITA_REGION_ID = 10000002;
+
+            const statusEl =
+                document.getElementById("status");
+
+            const tableEl =
+                document.getElementById("materialsTable");
+
+            const tbodyEl =
+                tableEl.querySelector("tbody");
+
+            const totalEl =
+                document.getElementById("grandTotal");
+
+            document
+                .getElementById("loadBtn")
+                .addEventListener("click", loadData);
+
+            async function loadData() {
+                try {
+                    statusEl.textContent =
+                        "Loading blueprint materials...";
+
+                    statusEl.className =
+                        "loading";
+
+                    tbodyEl.innerHTML = "";
+
+                    totalEl.textContent = "";
+
+                    tableEl.hidden = true;
+
+                    // 1. Get blueprint data
+                    const blueprintRes =
+                        await fetch(
+                            `https://www.fuzzwork.co.uk/blueprint/api/blueprint.php?typeid=${DEIMOS_TYPE_ID}`
+                        );
+
+                    const blueprintData =
+                        await blueprintRes.json();
+
+                    const materials =
+                        blueprintData
+                            .activityMaterials
+                            .manufacturing;
+
+                    // 2. Get material IDs
+                    const typeIds =
+                        materials.map(
+                            (m) => m.typeid
+                        );
+
+                    // 3. Get names from ESI
+                    const namesRes =
+                        await fetch(
+                            "https://esi.evetech.net/latest/universe/names/?datasource=tranquility",
+                            {
+                                method: "POST",
+
+                                headers: {
+                                    "Content-Type":
+                                        "application/json",
+                                },
+
+                                body: JSON.stringify(
+                                    typeIds
+                                ),
+                            }
+                        );
+
+                    const namesData =
+                        await namesRes.json();
+
+                    const namesMap = {};
+
+                    namesData.forEach((item) => {
+                        namesMap[item.id] =
+                            item.name;
+                    });
+
+                    // 4. Get Jita prices
+                    const pricesRes =
+                        await fetch(
+                            `https://market.fuzzwork.co.uk/aggregates/?region=${JITA_REGION_ID}&types=${typeIds.join(",")}`
+                        );
+
+                    const pricesData =
+                        await pricesRes.json();
+
+                    let grandTotal = 0;
+
+                    for (const material of materials) {
+                        const typeId =
+                            material.typeid;
+
+                        const quantity =
+                            material.quantity;
+
+                        const name =
+                            namesMap[typeId] ||
+                            `Unknown (${typeId})`;
+
+                        const buyPrice =
+                            pricesData[typeId]
+                                ?.buy?.max || 0;
+
+                        const totalCost =
+                            buyPrice *
+                            quantity;
+
+                        grandTotal +=
+                            totalCost;
+
+                        const row =
+                            document.createElement(
+                                "tr"
+                            );
+
+                        row.innerHTML = `
+                            <td>${name}</td>
+                            <td>${quantity.toLocaleString()}</td>
+                            <td>${formatISK(buyPrice)}</td>
+                            <td>${formatISK(totalCost)}</td>
+                        `;
+
+                        tbodyEl.appendChild(
+                            row
+                        );
+                    }
+
+                    tableEl.hidden = false;
+
+                    totalEl.textContent =
+                        `Estimated Total Build Cost: ${formatISK(grandTotal)}`;
+
+                    statusEl.textContent =
+                        "Loaded successfully.";
+
+                    statusEl.className = "";
+                } catch (err) {
+                    console.error(err);
+
+                    statusEl.textContent =
+                        "Failed to load data. Check console for details.";
+
+                    statusEl.className =
+                        "error";
+                }
+            }
+
+            function formatISK(value) {
+                return (
+                    new Intl.NumberFormat(
+                        "en-US",
+                        {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                        }
+                    ).format(value) + " ISK"
+                );
+            }
+        </script>
+    </body>
+</html>
