@@ -1,10 +1,9 @@
-const BLUEPRINT_ID = 12024;
+const BLUEPRINT_ID = 12024; // Deimos Blueprint
+const REGION_ID = 10000002; // The Forge
+const JITA_STATION_ID = 60003760; // Jita 4-4
 
-// The Forge
-const REGION_ID = 10000002;
-
-// Jita IV - Moon 4 - Caldari Navy Assembly Plant
-const JITA_STATION_ID = 60003760;
+const PRICE_MAP = new Map();
+const MATS_MAP = new Map();
 
 async function load() {
 
@@ -119,15 +118,13 @@ async function load() {
     status.textContent = "Done.";
 }
 
-// Jita 4-4 ONLY
-async function getLowestJitaSell(typeId) {
-
+async function getLowestJitaSell(typeId)
+{
     let page = 1;
-
     let lowest = Infinity;
 
-    while (true) {
-
+    while (true)
+    {
         const url =
             `https://esi.evetech.net/latest/markets/${REGION_ID}/orders/` +
             `?datasource=tranquility` +
@@ -135,40 +132,23 @@ async function getLowestJitaSell(typeId) {
             `&type_id=${typeId}` +
             `&page=${page}`;
 
-        const res =
-            await fetch(url);
+        const response = await fetch(url);
+        const orders = await response.json();
 
-        const orders =
-            await res.json();
+        if (!orders.length) break;
 
-        if (!orders.length) {
-            break;
-        }
-
-        for (const order of orders) {
-
+        for (const order of orders)
+        {
             // Jita 4-4 only
-            if (
-                order.location_id ===
-                JITA_STATION_ID
-            ) {
-
-                if (order.price < lowest) {
-                    lowest = order.price;
-                }
-            }
+            if (order.location_id === JITA_STATION_ID && order.price < lowest) lowest = order.price;
         }
 
-        if (orders.length < 1000) {
-            break;
-        }
+        if (orders.length < 1000) break; // stop request loop if last page
 
         page++;
     }
 
-    if (lowest === Infinity) {
-        return 0;
-    }
+    if (lowest === Infinity) return 0;
 
     return lowest;
 }
