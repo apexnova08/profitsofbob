@@ -1,28 +1,25 @@
 const BLUEPRINT_ID = 12024; // Deimos Blueprint
 const REGION_ID = 10000002; // The Forge
 const JITA_STATION_ID = 60003760; // Jita 4-4
+const CC_ID = 334 // Construction Components
 
 const PRICE_MAP = new Map();
 const MATS_MAP = new Map();
 
-async function load() {
 
-    const status =
-        document.getElementById("status");
+function init()
+{
+    console.log("DOM ready");
+}
 
-    const table =
-        document.getElementById("table");
+async function load()
+{
+    const status = document.getElementById("status");
+    const table = document.getElementById("table");
+    const tbody = table.querySelector("tbody");
+    const grandTotalEl = document.getElementById("grandTotal");
 
-    const tbody =
-        table.querySelector("tbody");
-
-    const grandTotalEl =
-        document.getElementById("grandTotal");
-
-    const me =
-        Number(
-            document.getElementById("meInput").value
-        );
+    const me = Number(document.getElementById("meInput").value);
 
     status.textContent = "Loading...";
 
@@ -31,16 +28,7 @@ async function load() {
 
     let grandTotal = 0;
 
-    // Load blueprint
-    const blueprintRes = await fetch(
-        `https://www.fuzzwork.co.uk/blueprint/api/blueprint.php?typeid=${BLUEPRINT_ID}`
-    );
-
-    const blueprintData =
-        await blueprintRes.json();
-
-    const materials =
-        blueprintData.activityMaterials["1"];
+    const materials = await getBPMaterials(BLUEPRINT_ID)
 
     // PARALLEL PRICE LOADING
     const pricePromises =
@@ -118,6 +106,17 @@ async function load() {
     status.textContent = "Done.";
 }
 
+async function getBPMaterials(bpId) {
+    const blueprintRes = await fetch(`https://www.fuzzwork.co.uk/blueprint/api/blueprint.php?typeid=${bpId}`);
+    const blueprintData = await blueprintRes.json();
+
+    return blueprintData.activityMaterials["1"];
+}
+
+async function getCost(typeId)
+{
+    
+}
 async function getLowestJitaSell(typeId)
 {
     let page = 1;
@@ -142,7 +141,6 @@ async function getLowestJitaSell(typeId)
             // Jita 4-4 only
             if (order.location_id === JITA_STATION_ID && order.price < lowest) lowest = order.price;
         }
-
         if (orders.length < 1000) break; // stop request loop if last page
 
         page++;
@@ -165,8 +163,8 @@ function calculateMEQuantity(baseQty, mePercent) {
     );
 }
 
-function formatISK(value) {
-
+function formatISK(value)
+{
     return value.toLocaleString(
         "en-US",
         {
@@ -175,3 +173,6 @@ function formatISK(value) {
         }
     ) + " ISK";
 }
+
+
+document.addEventListener("DOMContentLoaded", init); // onload
